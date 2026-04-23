@@ -488,14 +488,21 @@
     opacity: 0.75;
     font-variant-numeric: tabular-nums;
   }
-  .chip-distress      { color: #b91c3d; background: rgba(225, 29, 72, 0.08);  border-color: rgba(225, 29, 72, 0.20); }
-  .chip-anxiety       { color: #b45309; background: rgba(217, 119, 6, 0.08);  border-color: rgba(217, 119, 6, 0.20); }
-  .chip-sadness       { color: #4f46e5; background: rgba(99, 102, 241, 0.08); border-color: rgba(99, 102, 241, 0.22); }
-  .chip-fatigue       { color: #6d5dff; background: rgba(124, 108, 255, 0.09);border-color: rgba(124, 108, 255, 0.22); }
-  .chip-isolation     { color: #0e7490; background: rgba(8, 145, 178, 0.08);  border-color: rgba(8, 145, 178, 0.22); }
-  .chip-coping        { color: #047857; background: rgba(5, 150, 105, 0.08);  border-color: rgba(5, 150, 105, 0.22); }
-  .chip-relationships { color: #9d174d; background: rgba(190, 24, 93, 0.08);  border-color: rgba(190, 24, 93, 0.22); }
-  .chip-body          { color: #0369a1; background: rgba(2, 132, 199, 0.08);  border-color: rgba(2, 132, 199, 0.22); }
+  /* Chip colors — each of the 5 broad areas gets a distinct color that
+     is REUSED in the brain (l1 pills, card dots, border accents). This
+     visual continuity is what makes the capture → brain transition
+     feel like one coherent experience.
+       relationships   → pink
+       anxiety         → peach / amber
+       energy          → purple
+       self_protection → mint
+       body_signals    → sky blue
+  */
+  .chip-relationships   { color: #b63b7c; background: rgba(232, 89, 152, 0.10); border-color: rgba(232, 89, 152, 0.26); }
+  .chip-anxiety         { color: #b45309; background: rgba(242, 143, 97, 0.10); border-color: rgba(242, 143, 97, 0.26); }
+  .chip-energy          { color: #6d28d9; background: rgba(139, 92, 246, 0.10); border-color: rgba(139, 92, 246, 0.26); }
+  .chip-self_protection { color: #047857; background: rgba(16, 185, 129, 0.10); border-color: rgba(16, 185, 129, 0.26); }
+  .chip-body_signals    { color: #0369a1; background: rgba(56, 149, 211, 0.10); border-color: rgba(56, 149, 211, 0.26); }
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-2px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -755,6 +762,22 @@
     border-radius: 100px;
     font-size: 10.5px;
     color: rgba(255,255,255,0.86);
+  }
+  .bcard .card-excerpts {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bcard .card-excerpt {
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.72);
+    font-style: italic;
   }
   .bcard .card-note {
     margin-top: 4px;
@@ -1407,121 +1430,65 @@
   const ctaBtn        = document.getElementById('ctaBtn');
   const summaryEl     = document.getElementById('summary');
 
-  // ---- Language detection (ES / EN) --------------------------------------
-  // A small set of high-frequency words that act as fingerprints for each
-  // language. Combined with a check for Spanish-exclusive characters, this
-  // is enough to disambiguate most natural-sentence-length utterances.
-  const ES_MARKERS = new Set([
-    'el','la','los','las','un','una','unos','unas','de','del','al','y','o','pero','que',
-    'por','para','con','sin','sobre','hasta','desde','es','son','soy','eres','somos',
-    'ser','estar','estoy','estás','está','están','hay','he','has','ha','hemos','han',
-    'fue','fueron','era','eran','tengo','tienes','tiene','tenemos','tienen','tenía',
-    'voy','vas','va','vamos','van','me','te','se','nos','les','mi','tu','su',
-    'este','esta','estos','estas','ese','esa','esos','esas','aquel','aquella',
-    'muy','más','menos','ya','todavía','también','tampoco','siempre','nunca',
-    'hoy','ayer','mañana','ahora','bien','mal','si','sí','no','quiero','quieres','quiere',
-    'puedo','puedes','puede','cuando','donde','porque','mientras','aunque','así',
-    'gracias','hola','adiós','cómo','qué','cuál','cuáles','quién','entonces','pues'
-  ]);
-  const EN_MARKERS = new Set([
-    'the','a','an','and','or','but','of','to','in','on','at','for','with','as','by','from',
-    'is','are','was','were','be','been','being','have','has','had','do','does','did',
-    'will','would','can','could','should','may','might','i','you','he','she','it','we',
-    'they','me','him','her','us','them','my','your','his','hers','its','our','their',
-    'this','that','these','those','here','there','where','when','why','how','what','who',
-    'which','very','really','just','only','also','too','so','than','then','always','never',
-    'sometimes','today','yesterday','tomorrow','now','well','bad','good','yes','no',
-    'want','wants','need','needs','like','love','think','know','feel','feels','felt',
-    'because','about','over','under','into','out','up','down','still','even','though'
-  ]);
-  const SPANISH_EXCLUSIVE_CHARS = /[ñáéíóúü¿¡]/;
-
-  function detectLanguage(text) {
-    if (!text || !text.trim()) return null;
-    const lower = text.toLowerCase();
-    if (SPANISH_EXCLUSIVE_CHARS.test(lower)) return 'es';
-
-    const words = lower.match(/[\p{L}]+/gu) || [];
-    if (words.length < 2) return null;
-
-    let es = 0, en = 0;
-    for (const w of words) {
-      if (ES_MARKERS.has(w)) es++;
-      if (EN_MARKERS.has(w)) en++;
-    }
-    const total = es + en;
-    if (total < 2) return null;
-    // Require a clear margin to avoid flapping on ambiguous phrases
-    if (en >= 2 * Math.max(es, 1)) return 'en';
-    if (es >= 2 * Math.max(en, 1)) return 'es';
-    return null;
-  }
-
-  // Resolve a browser locale to a well-supported SpeechRecognition lang tag
-  function resolveLocale(short) {
-    const nav = (navigator.language || '').toLowerCase();
-    if (short === 'es') return nav.startsWith('es') ? navigator.language : 'es-ES';
-    return nav.startsWith('en') ? navigator.language : 'en-US';
-  }
-
-  // ---- Pattern detection (mental health) ---------------------------------
-  // Word lists are lowercase, accents-preserved. Categories lean clinical
-  // and non-alarming — the goal is gentle awareness, not diagnosis.
+  // ---- Pattern detection (broad areas) ----------------------------------
+  // 5 broad areas — these drive BOTH the "Patterns detected" chips under
+  // the transcript AND the first-level (l1) nodes in the brain. That's
+  // what makes the capture → brain transition feel logical: the same
+  // shapes the user sees as chips are what they land on in the brain.
+  //
+  // Labels are user-facing and match the brain overview exactly.
   const CATEGORIES = {
-    distress: {
-      label: 'Distress',
+    relationships: {
+      label: 'Relationships',
+      // Words signalling connection, attachment, and its absence (isolation).
       words: [
-        'overwhelmed','hopeless','worthless','empty','numb','broken','lost','stuck','trapped','drowning','suffocating','unbearable','helpless','defeated',
-        'abrumado','abrumada','desesperanzado','desesperanzada','inútil','vacío','vacía','roto','rota','perdido','perdida','atrapado','atrapada','ahogado','ahogada','insoportable'
+        'family','friend','friends','partner','mom','dad','mother','father','sister','brother',
+        'wife','husband','girlfriend','boyfriend','love','relationship','alone','lonely',
+        'loneliness','isolated','isolation','nobody','withdrawn','disconnected','abandoned',
+        'abandon','leave me','leaves me','close to','distance','push away','push them away'
       ]
     },
     anxiety: {
       label: 'Anxiety',
+      // Worry states, emotional distress, sadness — the wide band of
+      // difficult emotional weather.
       words: [
-        'anxious','anxiety','worried','worrying','panic','panicking','nervous','stressed','stress','scared','afraid','fear','restless','on edge',
-        'ansioso','ansiosa','ansiedad','preocupado','preocupada','preocupación','pánico','nervioso','nerviosa','estresado','estresada','estrés','miedo','asustado','asustada','inquieto','inquieta'
+        'anxious','anxiety','worried','worrying','worry','panic','panicking','nervous',
+        'stressed','stress','scared','afraid','fear','restless','on edge','overthinking',
+        'overwhelmed','hopeless','worthless','empty','numb','broken','lost','stuck','trapped',
+        'drowning','suffocating','unbearable','helpless','defeated',
+        'sad','depressed','depression','down','crying','cry','tears','unhappy','miserable',
+        'grief','grieving','hurt','heartbroken'
       ]
     },
-    sadness: {
-      label: 'Sadness',
+    energy: {
+      label: 'Energy',
+      // Exhaustion / burnout / depletion / low fuel.
       words: [
-        'sad','depressed','depression','down','crying','cry','tears','unhappy','miserable','grief','grieving','hurt','heartbroken','blue',
-        'triste','tristeza','deprimido','deprimida','depresión','decaído','decaída','llorar','llorando','lágrimas','infeliz','duelo','dolor','herido','herida'
+        'tired','exhausted','drained','fatigue','fatigued','sleepy','insomnia','burnout',
+        'burned out','burning out','worn','weary','depleted','no energy','running on empty',
+        'wiped out','spent'
       ]
     },
-    fatigue: {
-      label: 'Fatigue',
+    self_protection: {
+      label: 'Self-Protection',
+      // Self-managing behaviors — both the healthy ones (coping) and the
+      // defensive ones (avoidance, guardedness, over-giving then bottling).
       words: [
-        'tired','exhausted','drained','fatigue','fatigued','sleepy','insomnia','burnout','burned','worn','weary',
-        'cansado','cansada','agotado','agotada','fatiga','fatigado','fatigada','insomnio','quemado','quemada','desgastado','desgastada'
+        'grateful','thankful','hopeful','hope','better','progress','support','therapy',
+        'therapist','breathing','meditation','meditate','mindful','mindfulness','journal',
+        'journaling','exercise','walk','rest','healing','calm',
+        'boundary','boundaries','say no','can\'t say no','avoid','avoiding','procrastinate',
+        'procrastinating','putting off','pleaser','people please','keep the peace','guarded'
       ]
     },
-    isolation: {
-      label: 'Isolation',
+    body_signals: {
+      label: 'Body Signals',
+      // Somatic cues — where the body speaks.
       words: [
-        'alone','lonely','loneliness','isolated','isolation','nobody','withdrawn','disconnected',
-        'solo','sola','solitario','solitaria','aislado','aislada','nadie','soledad','apartado','apartada','desconectado','desconectada'
-      ]
-    },
-    coping: {
-      label: 'Coping',
-      words: [
-        'grateful','thankful','hopeful','hope','better','progress','support','therapy','therapist','breathing','meditation','meditate','mindful','mindfulness','journal','journaling','exercise','walk','rest','healing','calm',
-        'agradecido','agradecida','gratitud','esperanza','esperanzado','esperanzada','mejor','progreso','apoyo','terapia','terapeuta','respiración','respirar','meditación','meditar','atento','atenta','diario','ejercicio','caminar','descanso','sanando','tranquilo','tranquila'
-      ]
-    },
-    relationships: {
-      label: 'Relationships',
-      words: [
-        'family','friend','friends','partner','mom','dad','mother','father','sister','brother','wife','husband','girlfriend','boyfriend','love','relationship',
-        'familia','amigo','amiga','amigos','amigas','pareja','mamá','papá','madre','padre','hermana','hermano','esposa','esposo','novia','novio','amor','relación'
-      ]
-    },
-    body: {
-      label: 'Body',
-      words: [
-        'sleep','sleeping','appetite','eating','hungry','headache','tension','tense','tight','heart','chest','breath','breathing','stomach','nausea','dizzy',
-        'dormir','sueño','apetito','comer','hambre','tensión','tenso','tensa','corazón','pecho','respiración','estómago','náusea','mareado','mareada'
+        'sleep','sleeping','appetite','eating','hungry','headache','tension','tense','tight',
+        'heart','chest','breath','breathing','stomach','nausea','dizzy','heart racing',
+        'chest tight','can\'t relax','shaky','trembling','jumpy'
       ]
     }
   };
@@ -1565,16 +1532,12 @@
   }
 
   // State -------------------------------------------------------------------
-  // Two-recognizer model: we maintain a separate SpeechRecognition instance
-  // per supported language, each with a FIXED `.lang` that never changes.
-  // Switching languages becomes "stop A, start B" — neither instance ever
-  // sees a lang change, so Chrome doesn't reinitialize its speech service
-  // connection and doesn't re-validate mic permission mid-session.
-  const recognizers     = Object.create(null);  // { en: SR, es: SR }
-  const primedLangs     = new Set();            // langs that have been start()/stop() at least once
-  let   activeRecognition = null;               // currently "chosen" recognizer; event handlers check identity
+  // Single-recognizer model: one English (en-US) SpeechRecognition instance
+  // for the lifetime of the page. This eliminates the dual-recognizer
+  // handoff that was a frequent cause of permission re-prompts.
+  let   recognition       = null;               // the one SR instance
   let   shouldListen      = false;              // user intent — true between Start and Stop
-  let   isRecognizing     = false;              // true between onstart and onend on the ACTIVE recognizer
+  let   isRecognizing     = false;              // true between onstart and onend
   let   fatalError        = null;               // 'blocked' | 'no-mic' | null
   let   persistentStream  = null;               // kept alive so the browser never re-prompts
   let   audioCtx          = null;               // keeps the persistent stream actively consumed
@@ -1583,14 +1546,9 @@
   let   currentInterim    = '';                 // latest interim result (for live pattern counts)
   let   restartTimer      = null;
   let   recentRestarts    = [];                 // timestamps of recent restart attempts
+  let   primed            = false;              // one-shot: the recognizer has been start()/stopped() once
 
-  // Language: start in the browser's preferred locale if it's ES or EN,
-  // otherwise default to en-US. Auto-switches based on what the user speaks.
-  const initialShort = (navigator.language || '').toLowerCase().startsWith('es') ? 'es' : 'en';
-  let currentShort   = initialShort;      // 'en' | 'es'
-  let currentLang    = resolveLocale(currentShort);
-  let langSwitchCooldown = 0;             // timestamp — don't switch more than once every N ms
-
+  const RECOGNITION_LANG = 'en-US';
   const RESTART_DELAY_MS    = 250;
   const THRASH_WINDOW_MS    = 3000;
   const THRASH_MAX_RESTARTS = 6;
@@ -1852,76 +1810,6 @@
     summaryEl.classList.add('visible');
   }
 
-  // ---- Language auto-switch logic ----------------------------------------
-  function maybeSwitchLanguage(latestChunk) {
-    const now = Date.now();
-    if (now < langSwitchCooldown) return;
-
-    // Run detection on the latest chunk AND on a tail window of finalText,
-    // so short utterances don't flip languages prematurely.
-    const tail = finalText.slice(-240);
-    const detected = detectLanguage(latestChunk) || detectLanguage(tail);
-    if (!detected || detected === currentShort) return;
-    if (!recognizers[detected]) return;  // target recognizer disabled (e.g. unsupported)
-
-    currentShort = detected;
-    currentLang  = resolveLocale(currentShort);
-    langSwitchCooldown = now + 3000;   // no more than one switch per ~3s
-    switchActiveRecognizer(detected);
-  }
-
-  // Swap the active recognizer. Old instance keeps its fixed `.lang`, new
-  // instance keeps its fixed `.lang`. Chrome never sees a lang change on a
-  // single instance, so it doesn't reinitialize its speech backend and
-  // doesn't re-validate microphone permission.
-  function switchActiveRecognizer(newShort) {
-    const newRec = recognizers[newShort];
-    const oldRec = activeRecognition;
-    if (!newRec || newRec === oldRec) return;
-
-    // Pointing activeRecognition at newRec BEFORE stopping oldRec means
-    // oldRec's onend will see it's no longer active and skip auto-restart.
-    activeRecognition = newRec;
-
-    // CRITICAL: reset isRecognizing here. oldRec's upcoming onend will
-    // exit early due to the active-recognizer guard and NEVER reset this
-    // flag. If we leave it true, tryStart below bails on `if (isRecognizing)`
-    // and the new recognizer never starts — the session stays frozen on the
-    // previous language. From the app's perspective, no recognizer is
-    // running until newRec.onstart fires.
-    isRecognizing = false;
-
-    if (oldRec) {
-      try { oldRec.stop(); } catch (_) {}
-    }
-
-    // Retry with backoff — the old recognizer may still be in a transitional
-    // state when we first try to start the new one, causing InvalidStateError.
-    const tryStart = async (attempt) => {
-      if (activeRecognition !== newRec || !shouldListen || fatalError) return;
-      if (isRecognizing) return;  // newRec.onstart already fired — nothing to do
-
-      // Defensive: same safety net as the onend auto-restart path. If the
-      // persistent stream died (device change, OS suspend), re-acquire
-      // before starting so the browser doesn't see it as a fresh session.
-      if (!hasLiveStream()) {
-        const { ok } = await ensureMicPermission();
-        if (!ok || activeRecognition !== newRec || !shouldListen) return;
-      }
-
-      try {
-        newRec.start();
-        primedLangs.add(newShort);
-      } catch (e) {
-        console.warn('[SR] switch start threw:', e.name, e.message);
-        if (attempt < 6) {
-          setTimeout(() => tryStart(attempt + 1), 160);
-        }
-      }
-    };
-    tryStart(0);
-  }
-
   function enterActiveUI() {
     micBtn.classList.add('is-listening');
     micBtnText.textContent = 'Listening…';
@@ -1938,21 +1826,16 @@
     if (window.__setBgEnergy) window.__setBgEnergy(0);
   }
 
-  // Build a SpeechRecognition instance for a SPECIFIC language. Each instance
-  // gets a fixed `.lang` that never changes — that's what lets us hot-swap
-  // between ES and EN without Chrome reinitializing its speech backend.
-  // Event handlers guard on `r !== activeRecognition` so that a stale
-  // recognizer (the one we just swapped away from) never drives UI or
-  // re-enters the auto-restart loop.
-  function buildRecognitionForLang(lang) {
+  // Build the single SpeechRecognition instance. Fixed `.lang = en-US`,
+  // never changes. No dual-recognizer handoff, no active-recognizer checks.
+  function buildRecognition() {
     const r = new SR();
     r.continuous      = true;
     r.interimResults  = true;
     r.maxAlternatives = 1;
-    r.lang            = lang;
+    r.lang            = RECOGNITION_LANG;
 
     r.onstart = () => {
-      if (r !== activeRecognition) return;
       isRecognizing = true;
       setStatus('listening', 'Listening');
       enterActiveUI();
@@ -1961,14 +1844,11 @@
 
     r.onaudiostart  = () => { /* mic is live */ };
     r.onspeechstart = () => {
-      if (r !== activeRecognition) return;
       setStatus('listening', 'Listening');
     };
 
     r.onresult = (event) => {
-      if (r !== activeRecognition) return;
       let interim = '';
-      let newFinalChunk = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         const transcript = result[0].transcript;
@@ -1976,7 +1856,6 @@
           const trimmed = transcript.trim();
           const needsSpace = finalText && !/\s$/.test(finalText);
           finalText += (needsSpace ? ' ' : '') + trimmed;
-          newFinalChunk += (newFinalChunk ? ' ' : '') + trimmed;
         } else {
           interim += transcript;
         }
@@ -1984,19 +1863,11 @@
       currentInterim = interim.trim();
       renderTranscript(currentInterim);
       recomputeCounts();
-      if (newFinalChunk) {
-        maybeSwitchLanguage(newFinalChunk);
-      }
     };
 
     r.onerror = (event) => {
       const err = event.error;
-      console.warn('[SR][' + lang + '] error:', err, event.message || '');
-
-      // Inactive recognizers usually just produce 'aborted' during swap — ignore
-      if (r !== activeRecognition && err !== 'not-allowed' && err !== 'service-not-allowed') {
-        return;
-      }
+      console.warn('[SR] error:', err, event.message || '');
 
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         fatalError = 'blocked';
@@ -2012,33 +1883,17 @@
       } else if (err === 'network') {
         setStatus('processing', 'Network hiccup — retrying');
       } else if (err === 'aborted') {
-        // Normal on manual stop or language swap
+        // Normal on manual stop
       } else if (err === 'language-not-supported') {
-        // Disable this recognizer permanently and fall back to the other
-        console.warn('[SR]', lang, 'not supported — disabling');
-        const key = Object.keys(recognizers).find(k => recognizers[k] === r);
-        if (key) delete recognizers[key];
-        if (r === activeRecognition) {
-          const fallbackKey = Object.keys(recognizers)[0];
-          if (fallbackKey) {
-            currentShort = fallbackKey;
-            currentLang  = resolveLocale(fallbackKey);
-            switchActiveRecognizer(fallbackKey);
-          } else {
-            fatalError = 'blocked';
-            setStatus('unavailable', 'Language not supported');
-          }
-        }
+        fatalError = 'blocked';
+        shouldListen = false;
+        setStatus('unavailable', 'Language not supported');
       } else {
         setStatus('processing', 'Recovering…');
       }
     };
 
     r.onend = () => {
-      // Only the active recognizer participates in the restart loop.
-      // An inactive recognizer's onend fires as a no-op after a language swap.
-      if (r !== activeRecognition) return;
-
       isRecognizing = false;
 
       if (fatalError) {
@@ -2070,7 +1925,6 @@
       clearTimeout(restartTimer);
       restartTimer = setTimeout(async () => {
         if (!shouldListen || isRecognizing || fatalError) return;
-        if (r !== activeRecognition) return;   // got swapped while waiting
 
         // Safety net for stream death (device change / OS suspend)
         if (!hasLiveStream()) {
@@ -2082,7 +1936,6 @@
         try {
           r.start();
         } catch (e) {
-          // InvalidStateError → stop cleanly and give next onend a chance
           console.warn('[SR] restart threw:', e.name, e.message);
           try { r.abort(); } catch (_) {}
         }
@@ -2090,51 +1943,6 @@
     };
 
     return r;
-  }
-
-  // Primes a recognizer by briefly starting and immediately stopping it.
-  // Any one-time setup cost Chrome needs to pay (speech-service handshake,
-  // language-model load, sandbox permission negotiation) happens here,
-  // inside the user gesture that also drove the initial getUserMedia. After
-  // priming, subsequent start() calls on that instance are silent.
-  function primeRecognizer(key) {
-    const r = recognizers[key];
-    if (!r || primedLangs.has(key)) return Promise.resolve();
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = () => { if (!done) { done = true; primedLangs.add(key); resolve(); } };
-      const origOnStart = r.onstart;
-      const origOnEnd   = r.onend;
-      const origOnError = r.onerror;
-
-      r.onstart = () => {
-        // Swallow this onstart — priming, not real
-        try { r.stop(); } catch (_) {}
-      };
-      r.onend = () => {
-        r.onstart = origOnStart;
-        r.onend   = origOnEnd;
-        r.onerror = origOnError;
-        finish();
-      };
-      r.onerror = (event) => {
-        // If priming fails, restore handlers and move on — we'll just pay
-        // the init cost later if/when the user switches to this language
-        if (event.error !== 'aborted') {
-          console.warn('[SR] prime failed for', key, event.error);
-        }
-      };
-      try {
-        r.start();
-      } catch (_) {
-        r.onstart = origOnStart;
-        r.onend   = origOnEnd;
-        r.onerror = origOnError;
-        finish();
-      }
-      // Fail-safe timeout in case onend never fires
-      setTimeout(finish, 2500);
-    });
   }
 
   // Keep a microphone stream alive for the page's lifetime ------------------
@@ -2221,10 +2029,8 @@
     }
   }
 
-  // Build both recognizers up-front with fixed languages
-  recognizers.en = buildRecognitionForLang(resolveLocale('en'));
-  recognizers.es = buildRecognitionForLang(resolveLocale('es'));
-  activeRecognition = recognizers[currentShort];
+  // Build the single recognizer up-front
+  recognition = buildRecognition();
 
   // Button handlers ---------------------------------------------------------
   micBtn.addEventListener('click', async () => {
@@ -2240,24 +2046,12 @@
     shouldListen = true;
     setStatus('processing', 'Starting…');
 
-    // Prime the OTHER language's recognizer first. This briefly starts and
-    // stops the inactive instance inside the same user gesture + mic
-    // authorization window that's driving the real session — so when the
-    // user later switches language mid-conversation, that instance's
-    // speech-backend handshake is already done and Chrome doesn't ask
-    // for the mic again.
-    const otherKey = currentShort === 'en' ? 'es' : 'en';
-    if (recognizers[otherKey] && !primedLangs.has(otherKey)) {
-      primeRecognizer(otherKey).catch(() => {});
-    }
-
-    // Start the active recognizer. If priming is still mid-flight, Chrome
-    // may throw InvalidStateError — retry briefly.
+    // Start the recognizer. Retry briefly if InvalidStateError.
     const startActive = (attempt) => {
       if (!shouldListen || isRecognizing || fatalError) return;
       try {
-        activeRecognition.start();
-        primedLangs.add(currentShort);
+        recognition.start();
+        primed = true;
       } catch (e) {
         console.warn('[SR] start threw:', e.name, e.message);
         if (attempt < 5) {
@@ -2269,8 +2063,7 @@
         }
       }
     };
-    // Small delay gives priming a head-start so the active start succeeds first try
-    setTimeout(() => startActive(0), 60);
+    startActive(0);
   });
 
   stopBtn.addEventListener('click', () => {
@@ -2278,11 +2071,11 @@
     shouldListen = false;
     clearTimeout(restartTimer);
     setStatus('processing', 'Stopping…');
-    if (isRecognizing && activeRecognition) {
+    if (isRecognizing && recognition) {
       try {
-        activeRecognition.stop();
+        recognition.stop();
       } catch (_) {
-        try { activeRecognition.abort(); } catch (_) {}
+        try { recognition.abort(); } catch (_) {}
       }
     } else {
       // Nothing to stop — just reset UI
@@ -2447,9 +2240,9 @@
     }
   });
 
-  function abortAllRecognizers() {
-    for (const key of Object.keys(recognizers)) {
-      try { recognizers[key].abort(); } catch (_) {}
+  function abortRecognition() {
+    if (recognition) {
+      try { recognition.abort(); } catch (_) {}
     }
   }
 
@@ -2466,7 +2259,7 @@
           fatalError = 'blocked';
           shouldListen = false;
           clearTimeout(restartTimer);
-          abortAllRecognizers();
+          abortRecognition();
           releasePersistentStream();
           setStatus('unavailable', 'Microphone blocked');
           leaveActiveUI();
@@ -2482,7 +2275,7 @@
   window.addEventListener('beforeunload', () => {
     shouldListen = false;
     clearTimeout(restartTimer);
-    abortAllRecognizers();
+    abortRecognition();
     releasePersistentStream();
   });
 
@@ -2495,81 +2288,107 @@
   // node) distributed around the brain. The brain is a blank canvas for
   // the user's own patterns.
 
-  // Tone (color) for each pattern category — drives each pill's dot color.
-  const CATEGORY_TO_BRAIN_TONE = {
-    anxiety:       'difficult',
-    sadness:       'difficult',
-    distress:      'difficult',
-    fatigue:       'difficult',
-    isolation:     'mixed',
-    relationships: 'mixed',
-    body:          'mixed',
-    coping:        'positive'
+  // ========================================================================
+  // BROAD_AREAS — the l1 layer of the brain.
+  //
+  // These ARE the five "Patterns detected" areas. Each area surfaces as an
+  // l1 pill in the brain overview. Clicking it reveals the l2 subthemes —
+  // specific inferred patterns — as teaser cards.
+  //
+  // Each area carries:
+  //   key / label / tone    — identity + color (tone matches CSS chip)
+  //   insight               — l1 card body, a human sentence about the area
+  //   origin                — "Why this appeared" paragraph on the l1 card
+  //   triggers              — context cues for the l1 card
+  //   subthemes[]           — l2 drill-in list, each entry references an
+  //                            inferred pattern by id so the l2 card pulls
+  //                            rich content from the INFERRED_PATTERNS lib
+  //                            (and sits behind the teaser veil by default).
+  //   patternIds[]          — the inferred patterns that BELONG to this area;
+  //                            used to decide whether to surface the area
+  //                            and to aggregate supporting evidence.
+  // ========================================================================
+  const BROAD_AREAS = {
+    relationships: {
+      key: 'relationships',
+      label: 'Relationships',
+      tone: 'area_relationships',
+      insight: 'The patterns that shape how you move toward and away from people — how close you let others get, and what your system does when closeness shifts.',
+      origin: 'These patterns usually pre-date any current relationship. They were shaped early, by how safe or reliable closeness turned out to be, and now run quietly underneath the people in your life today.',
+      triggers: ['Closeness', 'Endings', 'Ambiguous signals'],
+      patternIds: [
+        'protective_distance', 'fear_abandonment', 'closeness_vs_guardedness',
+        'self_protection_independence', 'attachment_anxiety', 'reassurance_seeking'
+      ],
+      subthemes: [
+        { label: 'Protective distance',       patternId: 'protective_distance' },
+        { label: 'Fear of abandonment',       patternId: 'fear_abandonment' },
+        { label: 'Closeness vs guardedness',  patternId: 'closeness_vs_guardedness' }
+      ]
+    },
+    anxiety: {
+      key: 'anxiety',
+      label: 'Anxiety',
+      tone: 'area_anxiety',
+      insight: 'A system tuned to watch for what could go wrong — the loops, the rehearsals, and the quiet panic underneath the surface of ordinary moments.',
+      origin: 'Anxiety usually started as an attempt to prepare, predict, or protect. It kept running because its effort felt like caring. The cost accumulates quietly.',
+      triggers: ['Uncertainty', 'Unresolved conversations', 'Pending outcomes'],
+      patternIds: [
+        'rumination', 'replaying_conversations', 'performance_calm', 'hyperarousal',
+        'sensitivity_disappointment'
+      ],
+      subthemes: [
+        { label: 'Worry loops',     patternId: 'rumination' },
+        { label: 'Overthinking',    patternId: 'replaying_conversations' },
+        { label: 'Internal panic',  patternId: 'performance_calm' }
+      ]
+    },
+    energy: {
+      key: 'energy',
+      label: 'Energy',
+      tone: 'area_energy',
+      insight: 'What\'s drawing on your reserves and what the reserves actually respond to — the gap between being tired and being replenished.',
+      origin: 'Exhaustion is rarely about one thing. It\'s the accumulation of many small over-givings, plus the rest that keeps being postponed, plus the sleep that keeps not arriving clean.',
+      triggers: ['Over-functioning', 'Broken sleep', 'Unprotected weeks'],
+      patternIds: ['exhaustion_burnout', 'sleep_dysregulation'],
+      subthemes: [
+        { label: 'Exhaustion',            patternId: 'exhaustion_burnout' },
+        { label: 'Sleep dysregulation',   patternId: 'sleep_dysregulation' },
+        { label: 'Depletion',             patternId: 'exhaustion_burnout', altLabel: true }
+      ]
+    },
+    self_protection: {
+      key: 'self_protection',
+      label: 'Self-Protection',
+      tone: 'area_self_protection',
+      insight: 'The strategies — some learned, some reflexive — your system uses to stay safe in relationships and in performance: what you say yes to, what you avoid, what you swallow.',
+      origin: 'These moves were adaptive once. In environments where directness was costly, indirectness kept you steady. The skill stayed. The context may have changed.',
+      triggers: ['Requests', 'Disagreement', 'Visible expectation'],
+      patternIds: [
+        'people_pleasing', 'conflict_avoidance', 'procrastination_pressure',
+        'over_control', 'emotional_over_responsibility', 'resentment'
+      ],
+      subthemes: [
+        { label: 'People-pleasing',            patternId: 'people_pleasing' },
+        { label: 'Conflict avoidance',         patternId: 'conflict_avoidance' },
+        { label: 'Procrastination under pressure', patternId: 'procrastination_pressure' }
+      ]
+    },
+    body_signals: {
+      key: 'body_signals',
+      label: 'Body Signals',
+      tone: 'area_body_signals',
+      insight: 'Where your inner state registers physically — tight chest, broken sleep, restlessness, low fuel. The body often knows before the mind catches up.',
+      origin: 'The body speaks the truth the day tried to keep quiet. These signals are information — about load, about held emotion, about what hasn\'t been metabolized yet.',
+      triggers: ['Sustained stress', 'Unfinished emotional business', 'Disrupted rhythms'],
+      patternIds: ['sleep_dysregulation', 'hyperarousal', 'exhaustion_burnout'],
+      subthemes: [
+        { label: 'Sleep issues',     patternId: 'sleep_dysregulation' },
+        { label: 'Restlessness',     patternId: 'hyperarousal' },
+        { label: 'Physical stress',  patternId: 'hyperarousal', altLabel: true }
+      ]
+    }
   };
-
-  // Sub-themes that open up UNDER each captured pill. Tailored per category
-  // so clicking "anxious" reveals anxiety-shaped questions, clicking "tired"
-  // reveals fatigue-shaped ones, etc. These are the l2 drill-in nodes.
-  // Each entry's `insight` may use {pill} which is replaced with the
-  // user's actual word.
-  const SUBTHEME_TEMPLATES = {
-    anxiety: [
-      { n: 'Triggers',      t: 'difficult', insight: 'What tends to invite {pill} into the room — the conditions, the moments, the cues.' },
-      { n: 'Body signals',  t: 'mixed',     insight: 'Where the body speaks before the mind catches up. The signal often arrives here first.' },
-      { n: 'The thought loop', t: 'difficult', insight: 'The spiral the mind runs when {pill} is on. Noticing the loop is already the exit.' },
-      { n: 'What steadies', t: 'positive',  insight: 'Small returns to the ground — breath, place, a familiar voice — when this is loud.' }
-    ],
-    sadness: [
-      { n: 'Source',        t: 'difficult', insight: 'Where this is coming from. {pill} is usually love or loss pointing somewhere.' },
-      { n: 'Underneath',    t: 'mixed',     insight: 'The thing {pill} is covering or protecting. Sadness is rarely the whole story.' },
-      { n: 'How it moves',  t: 'mixed',     insight: 'The rhythm of this feeling — when it rises, when it softens, how long it stays.' },
-      { n: 'Gentleness',    t: 'positive',  insight: 'The care this asks for. Not fixing — just being with it.' }
-    ],
-    distress: [
-      { n: 'Peak moments',  t: 'difficult', insight: 'When {pill} is loudest. The shape of the hardest moments.' },
-      { n: 'The signal',    t: 'mixed',     insight: 'What this intensity is trying to tell you. Distress always points somewhere.' },
-      { n: 'Who steadies',  t: 'positive',  insight: 'People, places, or practices that hold you when this arrives.' },
-      { n: 'Next small step', t: 'positive', insight: 'The smallest move that makes the room a little bigger.' }
-    ],
-    fatigue: [
-      { n: 'Energy drains', t: 'difficult', insight: 'What\'s pulling on your reserves — visible and invisible.' },
-      { n: 'When it shows up', t: 'mixed',  insight: 'The times of day, the contexts, the triggers where {pill} arrives.' },
-      { n: 'What rest looks like', t: 'positive', insight: 'Not just sleep — the specific kinds of rest your body and mind are asking for.' },
-      { n: 'Listen or push', t: 'neutral',  insight: 'The ongoing question: when to lean in, when to yield. {pill} is information.' }
-    ],
-    isolation: [
-      { n: 'When you pull away', t: 'difficult', insight: 'The moments you choose distance. What {pill} is protecting.' },
-      { n: 'What feels safer',   t: 'mixed',     insight: 'Solitude is not the enemy. Knowing what feels safer and why is useful data.' },
-      { n: 'What you miss',      t: 'mixed',     insight: 'What connection, at its best, would give you. The ache pointing at something.' },
-      { n: 'Small openings',     t: 'positive',  insight: 'Tiny, low-stakes ways back toward people. Not a leap — a lean.' }
-    ],
-    coping: [
-      { n: 'How it helps',  t: 'positive',  insight: 'What {pill} gives you. The specific relief or steadiness it provides.' },
-      { n: 'When you reach for it', t: 'mixed', insight: 'The contexts where this shows up — by intention or by reflex.' },
-      { n: 'What it\'s teaching', t: 'positive', insight: 'The learning inside this practice. What it\'s showing you about yourself.' },
-      { n: 'Deeper practice', t: 'positive', insight: 'Where this could go — what fuller, more intentional use might look like.' }
-    ],
-    relationships: [
-      { n: 'Closeness',     t: 'mixed',     insight: 'How {pill} figures in your circle — the role it plays, the space it takes.' },
-      { n: 'Your role',     t: 'neutral',   insight: 'How you tend to show up here. The patterns, the default positions.' },
-      { n: 'Tensions',      t: 'difficult', insight: 'Where the friction or tenderness lives — what\'s unsaid, what\'s asked for.' },
-      { n: 'Nourishment',   t: 'positive',  insight: 'What feeds you in this relationship. What you receive, what you give.' }
-    ],
-    body: [
-      { n: 'Sensations',    t: 'mixed',     insight: 'Where {pill} registers physically — tightness, heat, hollowness, hum.' },
-      { n: 'When it speaks', t: 'neutral',  insight: 'The moments your body gets louder. It often knows before you do.' },
-      { n: 'What it asks',   t: 'positive', insight: 'The request under the sensation — rest, movement, water, breath, stillness.' },
-      { n: 'Tuning in',      t: 'positive', insight: 'The practice of listening without forcing an answer. Presence as information.' }
-    ]
-  };
-
-  // Generic fallback subthemes for any category we don't have a template for.
-  const GENERIC_SUBTHEMES = [
-    { n: 'When it shows up', t: 'mixed',     insight: 'The moments {pill} tends to appear. Noticing the pattern is half the work.' },
-    { n: 'What it wants',    t: 'positive',  insight: 'Every feeling carries a wish. What is {pill} asking for?' },
-    { n: 'What triggers it', t: 'difficult', insight: 'The conditions that invite {pill} into the room.' },
-    { n: 'What helps',       t: 'positive',  insight: 'Small moves that soften {pill} when it gets loud.' }
-  ];
 
   // Distribute N principals around the brain in a roughly oval ring,
   // matching the brain's wider-than-tall envelope. A bit of vertical jitter
@@ -2607,56 +2426,747 @@
   // pill is a principal (l1 node) with sub-themes (l2 nodes) drawn from the
   // template bank for its pattern category. The brain becomes a map of
   // what the user actually said.
+  // =======================================================================
+  // INFERRED PATTERNS — the brain's overview layer.
+  //
+  // This is the architectural centerpiece. Raw words like "mother",
+  // "sleeping", "worried" are EVIDENCE, not patterns. A pattern is a
+  // canonical psychological motif (Inner critic, Fear of abandonment,
+  // Sleep dysregulation…) that gets INFERRED from combinations of evidence,
+  // not just from a single matching word.
+  //
+  // Each canonical pattern has:
+  //   id, label, category, tone
+  //   evidence: array of { regex, weight }    — words / phrases that contribute
+  //   coOccur:  array of [patternId, bonus]   — patterns that boost this one
+  //   threshold: minimum total score to surface
+  //   insight:   one-line summary
+  //   triggers, origin, related: static card fields
+  //   subthemes: array of { n, t, insight } for the l2 drill-in layer
+  //
+  // The library is deliberately broad so the demo feels intelligent even on
+  // modest utterances, without ever claiming clinical accuracy. Evidence
+  // regexes are unicode-safe and use lookbehind/lookahead for word boundaries
+  // consistent with the rest of the app.
+  // =======================================================================
+  const INFERRED_PATTERNS = [
+    {
+      id: 'inner_critic',
+      label: 'Inner critic',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.4,
+      evidence: [
+        { re: /\b(not good enough|never enough|not enough|never good)\b/i, w: 1.0 },
+        { re: /\b(stupid|idiot|pathetic|worthless|failure|useless)\b/i, w: 0.9 },
+        { re: /\b(i (should|must|need to) (have|be|do)|i always mess|i always fail)\b/i, w: 0.7 },
+        { re: /\b(hate myself|hard on myself|too hard on)\b/i, w: 1.1 },
+        { re: /\b(hear (my|her|his) voice|mom('s)? voice|mother('s)? voice|father('s)? voice)\b/i, w: 0.7 },
+        { re: /\b(too sensitive|too much|overreacting)\b/i, w: 0.6 },
+        { re: /\b(criticize|criticizing|judged|judging myself)\b/i, w: 0.8 }
+      ],
+      coOccur: [['resentment', 0.3], ['people_pleasing', 0.2]],
+      insight: 'A steady internal voice measuring you against standards you didn\'t choose — often louder than any outside criticism.',
+      triggers: ['Mistakes', 'Perceived failure', 'Comparison'],
+      origin: 'The inner critic is usually someone else\'s voice that was internalized early, now running on autopilot. It speaks as if it\'s trying to protect you from judgment by getting there first.',
+      related: ['Perfectionism', 'Shame', 'People-pleasing'],
+      subthemes: [
+        { n: 'The voice',      t: 'difficult', insight: 'Whose voice is this, originally. It rarely sounds like your own — tracing it back softens its authority.' },
+        { n: 'When it activates', t: 'mixed',  insight: 'The triggers that turn the volume up — specific contexts, performances, or imagined audiences.' },
+        { n: 'Its function',   t: 'mixed',     insight: 'What this voice is trying to protect you from. Usually: rejection, abandonment, or being seen as not enough.' },
+        { n: 'Talking back',   t: 'positive',  insight: 'Not silencing it — answering it. A gentler voice can coexist and eventually lead.' }
+      ]
+    },
+    {
+      id: 'fear_abandonment',
+      label: 'Fear of abandonment',
+      category: 'attachment',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(people will leave|everyone leaves|they('ll| will) leave|leave me)\b/i, w: 1.2 },
+        { re: /\b(abandon(ed|ment)?|left alone|be alone)\b/i, w: 1.0 },
+        { re: /\b(losing (them|her|him|people)|afraid to lose)\b/i, w: 0.9 },
+        { re: /\b(clingy|needy|too much for them)\b/i, w: 0.7 },
+        { re: /\b(texting back|didn'?t reply|didn'?t answer|ignored)\b/i, w: 0.5 },
+        { re: /\b(pull (them )?closer|don'?t want to lose)\b/i, w: 0.6 }
+      ],
+      coOccur: [['protective_distance', 0.4], ['reassurance_seeking', 0.4], ['attachment_anxiety', 0.5]],
+      insight: 'A persistent alarm that closeness is temporary — that people will eventually go, so every silence or delay reads as confirmation.',
+      triggers: ['Delayed replies', 'Perceived withdrawal', 'Endings / transitions'],
+      origin: 'Often rooted in early attachment experiences where care was inconsistent or suddenly withdrawn. The nervous system learned to scan for signs of departure.',
+      related: ['Protective distance', 'Attachment anxiety', 'Reassurance seeking'],
+      subthemes: [
+        { n: 'The alarm',       t: 'difficult', insight: 'What the fear sounds like in your head — the specific phrases it uses, the worst-case it rehearses.' },
+        { n: 'Body signature',  t: 'mixed',     insight: 'Where it lives physically. Chest, stomach, throat — the fear has a reliable address.' },
+        { n: 'What it wants',   t: 'mixed',     insight: 'The reassurance being asked for, and the reassurance that would actually help if you could ask cleanly.' },
+        { n: 'Anchoring',       t: 'positive',  insight: 'The practices that let you stay close without gripping — and let you breathe through a silence.' }
+      ]
+    },
+    {
+      id: 'protective_distance',
+      label: 'Protective distance',
+      category: 'attachment',
+      tone: 'mixed',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(push (people|them|him|her) away|pushed (him|her|them) away)\b/i, w: 1.2 },
+        { re: /\b(keep (people|them|my distance)|stay guarded|keep guard)\b/i, w: 1.1 },
+        { re: /\b(walls? up|put up (a )?wall|built (a )?wall)\b/i, w: 1.0 },
+        { re: /\b(don'?t let (them|people) (in|close)|won'?t let (them|people) (in|close))\b/i, w: 1.0 },
+        { re: /\b(better (off )?alone|safer alone|trust no one)\b/i, w: 0.8 },
+        { re: /\b(closed off|shut down|withdraw)\b/i, w: 0.6 }
+      ],
+      coOccur: [['fear_abandonment', 0.4], ['self_protection_independence', 0.3]],
+      insight: 'A learned distance that keeps intimacy at arm\'s length — the same closeness that\'s wanted also registers as danger.',
+      triggers: ['Vulnerability', 'Requests for closeness', 'Emotional exposure'],
+      origin: 'Distance often protected you once. If closeness came with unpredictability, the nervous system rationally chose space as the cheaper option.',
+      related: ['Fear of abandonment', 'Self-protection through independence', 'Closeness vs guardedness'],
+      subthemes: [
+        { n: 'The moment you pull back', t: 'difficult', insight: 'The specific cue that flips you from open to guarded. Noticing the cue gives you a seam to work with.' },
+        { n: 'What it costs',            t: 'mixed',     insight: 'The connection that distance has been keeping you from. Honest accounting, no blame.' },
+        { n: 'What it protects',         t: 'mixed',     insight: 'The hurt the wall is still trying to prevent. Respecting that is the beginning of softening it.' },
+        { n: 'Small openings',           t: 'positive',  insight: 'Tiny, low-risk moves toward contact — enough to update the old rule without flooding the system.' }
+      ]
+    },
+    {
+      id: 'closeness_vs_guardedness',
+      label: 'Closeness vs guardedness',
+      category: 'attachment',
+      tone: 'mixed',
+      threshold: 1.4,
+      evidence: [
+        { re: /\b(want (to be )?close|crave closeness|want connection)\b/i, w: 0.8 },
+        { re: /\b(but (i )?(can'?t|won'?t)|pull back|hold back)\b/i, w: 0.7 },
+        { re: /\b(scared to get close|afraid of closeness)\b/i, w: 1.0 },
+        { re: /\b(one foot out|half in|keep (my )?options)\b/i, w: 0.8 }
+      ],
+      coOccur: [['fear_abandonment', 0.4], ['protective_distance', 0.5]],
+      insight: 'Two pulls running at once: a real wish for closeness and a reflex that keeps it at a safe reach.',
+      triggers: ['Deepening relationships', 'Vulnerability windows', 'Commitment moments'],
+      origin: 'When past closeness came with loss or harm, the system learned to want it AND brace against it simultaneously. Both are honest.',
+      related: ['Protective distance', 'Fear of abandonment', 'Ambivalence'],
+      subthemes: [
+        { n: 'Both pulls',       t: 'mixed',     insight: 'The want and the brace, named together. Neither is the enemy.' },
+        { n: 'The seesaw',       t: 'mixed',     insight: 'How the tilt moves — what brings you forward, what sends you back.' },
+        { n: 'What\'s underneath', t: 'difficult', insight: 'The old prediction the brace is still answering. Usually older than the current relationship.' },
+        { n: 'Steadying',        t: 'positive',  insight: 'Small practices that let you stay present through a wobble, instead of resolving it by retreating.' }
+      ]
+    },
+    {
+      id: 'people_pleasing',
+      label: 'People-pleasing',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.4,
+      evidence: [
+        { re: /\b(can'?t say no|hard to say no|always say yes)\b/i, w: 1.2 },
+        { re: /\b(people pleas(er|ing)|pleaser)\b/i, w: 1.2 },
+        { re: /\b(don'?t want to disappoint|afraid to disappoint)\b/i, w: 1.0 },
+        { re: /\b(want them to like me|need (them|people) to like)\b/i, w: 0.8 },
+        { re: /\b(put (them|others) first|their (needs|feelings) first)\b/i, w: 0.7 },
+        { re: /\b(make (everyone|them) happy)\b/i, w: 0.8 }
+      ],
+      coOccur: [['conflict_avoidance', 0.4], ['self_abandonment', 0.4], ['inner_critic', 0.2]],
+      insight: 'Your radar is tuned to other people\'s states before your own — making things okay for them becomes the default before a request has even been made.',
+      triggers: ['Requests', 'Perceived disappointment', 'Group dynamics'],
+      origin: 'This usually took root in environments where other people\'s moods ran the weather. Reading and regulating them became a survival skill — useful, but costly when it becomes automatic.',
+      related: ['Conflict avoidance', 'Self-abandonment', 'Emotional over-responsibility'],
+      subthemes: [
+        { n: 'The tell',      t: 'difficult', insight: 'The moment you override your own signal. Usually a body cue — tightness, a fast "yes", a skipped breath.' },
+        { n: 'The cost',      t: 'mixed',     insight: 'What this carries for you over time. Resentment often arrives where a no didn\'t.' },
+        { n: 'A cleaner no',  t: 'positive',  insight: 'What an honest no could sound like in your voice — warm, short, not apologetic.' },
+        { n: 'Re-centering',  t: 'positive',  insight: 'Practices that return the question "what do I actually want" to the foreground.' }
+      ]
+    },
+    {
+      id: 'conflict_avoidance',
+      label: 'Conflict avoidance',
+      category: 'self',
+      tone: 'mixed',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(avoid (conflict|confrontation|arguments?)|hate (conflict|confrontation))\b/i, w: 1.2 },
+        { re: /\b(keep the peace|smooth (it|things) over)\b/i, w: 1.0 },
+        { re: /\b(swallow it|let it go|bite my tongue)\b/i, w: 0.9 },
+        { re: /\b(don'?t want to rock|don'?t rock the boat)\b/i, w: 0.8 },
+        { re: /\b(walking on eggshells)\b/i, w: 1.0 }
+      ],
+      coOccur: [['people_pleasing', 0.4], ['resentment', 0.3], ['self_abandonment', 0.3]],
+      insight: 'Disagreement gets folded back in before it can fully arrive — peace holds, but so does the thing that wasn\'t said.',
+      triggers: ['Disagreements', 'Hard conversations', 'Visible frustration'],
+      origin: 'Often learned where anger was unsafe or unpredictable. Choosing quiet was once the smart move; now it runs even where it isn\'t needed.',
+      related: ['People-pleasing', 'Resentment after self-abandonment', 'Suppression'],
+      subthemes: [
+        { n: 'The freeze',     t: 'difficult', insight: 'What happens in the moment disagreement appears. Voice, body, breath — where it locks.' },
+        { n: 'What you swallow', t: 'mixed',  insight: 'The sentence that didn\'t make it out. Naming it privately is already information.' },
+        { n: 'Safe-enough speech', t: 'positive', insight: 'Language that opens a conversation without opening a fight. Small phrasings, repeatable.' },
+        { n: 'Afterwards',     t: 'mixed',     insight: 'How your body tells you the cost later — so you can recognize the pattern earlier next time.' }
+      ]
+    },
+    {
+      id: 'procrastination_pressure',
+      label: 'Procrastination under pressure',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(procrastinat(e|ing|ion))\b/i, w: 1.2 },
+        { re: /\b(put(ting)? (it|things) off|keep (putting|pushing) off)\b/i, w: 1.0 },
+        { re: /\b(can'?t start|can'?t get started|frozen)\b/i, w: 0.9 },
+        { re: /\b(last minute|at the last|panic (start|working))\b/i, w: 0.8 },
+        { re: /\b(deadline|due (tomorrow|today|soon))\b/i, w: 0.4 },
+        { re: /\b(avoid(ing)? (it|work|the task))\b/i, w: 0.6 }
+      ],
+      coOccur: [['inner_critic', 0.3], ['hyperarousal', 0.2]],
+      insight: 'Not laziness — a nervous system that reads starting as threat. The task stays big until the threat of not doing it is bigger.',
+      triggers: ['High-stakes tasks', 'Perfectionist expectations', 'Ambiguous briefs'],
+      origin: 'Tasks attached to judgment become threats, not projects. Avoidance briefly lowers the threat, which teaches the system to avoid harder next time.',
+      related: ['Inner critic', 'Perfectionism', 'Task paralysis'],
+      subthemes: [
+        { n: 'The freeze point', t: 'difficult', insight: 'The exact step the system balks at. It\'s usually narrower than "the whole thing".' },
+        { n: 'The story underneath', t: 'mixed', insight: 'What starting would mean about you if it went wrong. That\'s the thing being avoided, more than the task.' },
+        { n: 'Smaller than starting', t: 'positive', insight: 'Moves so small they don\'t register as starting. The system accepts them and the door opens.' },
+        { n: 'After the panic',  t: 'mixed',     insight: 'The recovery pattern that follows a last-minute sprint. How you treat yourself here matters for next time.' }
+      ]
+    },
+    {
+      id: 'hyperarousal',
+      label: 'Hyperarousal',
+      category: 'body',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(wired|keyed up|on edge|on high alert)\b/i, w: 1.0 },
+        { re: /\b(heart (is )?racing|racing heart|pounding|chest tight)\b/i, w: 0.9 },
+        { re: /\b(can'?t (relax|calm down|switch off|turn off))\b/i, w: 1.1 },
+        { re: /\b(jumpy|startled|shaky|trembling)\b/i, w: 0.8 },
+        { re: /\b(too much coffee|too much caffeine|adrenaline)\b/i, w: 0.5 }
+      ],
+      coOccur: [['sleep_dysregulation', 0.4], ['rumination', 0.3]],
+      insight: 'A body stuck in an up-gear — ready for something that isn\'t happening yet, sometimes hasn\'t happened in years.',
+      triggers: ['Uncertainty', 'Pending conversations', 'Caffeine / stimulants'],
+      origin: 'Nervous systems calibrated by earlier threat don\'t always recalibrate when the threat lifts. Hyperarousal is the body believing it\'s still on duty.',
+      related: ['Sleep dysregulation', 'Performance calm / internal panic', 'Rumination'],
+      subthemes: [
+        { n: 'The up-gear',      t: 'difficult', insight: 'How the state arrives — ramp-up cues, body signatures, the click-on moment.' },
+        { n: 'What it\'s tracking', t: 'mixed',  insight: 'The threat the body is predicting. Often older than the current context.' },
+        { n: 'Downshifting',     t: 'positive',  insight: 'Practices that speak the body\'s language — slow exhale, long-exhale, orienting to space.' },
+        { n: 'The cost of staying up', t: 'mixed', insight: 'What this is draining while it protects. Sleep, digestion, patience — the quiet bills.' }
+      ]
+    },
+    {
+      id: 'sleep_dysregulation',
+      label: 'Sleep dysregulation',
+      category: 'body',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(trouble sleeping|can'?t sleep|couldn'?t sleep)\b/i, w: 1.2 },
+        { re: /\b(insomnia|restless night|tossing and turning)\b/i, w: 1.1 },
+        { re: /\b(wake up (at|around) \d|waking up early)\b/i, w: 0.9 },
+        { re: /\b(mind (is )?racing|thoughts racing|overthinking at night)\b/i, w: 0.9 },
+        { re: /\b(exhausted|drained|no energy)\b/i, w: 0.4 },
+        { re: /\b(coffee|caffeine|energy drinks)\b/i, w: 0.3 }
+      ],
+      coOccur: [['hyperarousal', 0.4], ['rumination', 0.3], ['exhaustion_burnout', 0.3]],
+      insight: 'Sleep isn\'t a willpower problem — when the mind is still on duty, the body doesn\'t get permission to stand down.',
+      triggers: ['Stimulants', 'Late-evening screens', 'Unfinished emotional business'],
+      origin: 'Sleep follows the day. A day spent at a higher activation level leaves a body that can\'t downshift on command at eleven.',
+      related: ['Hyperarousal', 'Rumination', 'Exhaustion / burnout'],
+      subthemes: [
+        { n: 'The landing',      t: 'difficult', insight: 'Where sleep actually breaks — falling asleep, staying asleep, waking early. Each points somewhere different.' },
+        { n: 'What comes up',    t: 'mixed',     insight: 'The specific thoughts that show up in the dark. They\'re information, not noise.' },
+        { n: 'Pre-sleep',        t: 'positive',  insight: 'The wind-down that would tell your body the day is done — longer than you think, quieter than you think.' },
+        { n: 'The morning-after', t: 'mixed',    insight: 'How a broken night writes itself onto the next day, and what kinds of rest (beyond sleep) actually repay some of it.' }
+      ]
+    },
+    {
+      id: 'exhaustion_burnout',
+      label: 'Exhaustion / burnout',
+      category: 'body',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(burn(ed)?\s*out|burning out)\b/i, w: 1.3 },
+        { re: /\b(exhausted|running on (empty|fumes))\b/i, w: 1.0 },
+        { re: /\b(depleted|drained|wiped out|spent)\b/i, w: 0.9 },
+        { re: /\b(nothing left (to give)?|no more (to give|energy))\b/i, w: 1.0 },
+        { re: /\b(can'?t keep (up|going)|at my limit)\b/i, w: 0.8 }
+      ],
+      coOccur: [['over_control', 0.2], ['people_pleasing', 0.2], ['emotional_over_responsibility', 0.3]],
+      insight: 'Not just tired. A depletion that sleep alone doesn\'t fix — because the thing emptying you is still demanding the withdrawal.',
+      triggers: ['Sustained over-functioning', 'Ongoing caregiving', 'Work with no off-switch'],
+      origin: 'Burnout is rarely from one event. It accumulates from many small over-givings that individually felt survivable.',
+      related: ['Emotional over-responsibility', 'Over-control', 'Self-abandonment'],
+      subthemes: [
+        { n: 'What\'s emptying you', t: 'difficult', insight: 'The specific demands — visible and invisible — that are drawing down reserves faster than they refill.' },
+        { n: 'What doesn\'t refill', t: 'mixed',     insight: 'The kinds of rest you keep trying that aren\'t actually restorative for what\'s been spent.' },
+        { n: 'Boundaries as rest',   t: 'positive',  insight: 'A no is sometimes more restorative than a vacation. What a structural change (not just recovery) would look like.' },
+        { n: 'The long view',        t: 'mixed',     insight: 'Burnout reshapes priorities. What this chapter might be asking you to let go of.' }
+      ]
+    },
+    {
+      id: 'reassurance_seeking',
+      label: 'Reassurance seeking',
+      category: 'attachment',
+      tone: 'mixed',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(need (them|him|her) to say|keep asking (them|him|her))\b/i, w: 1.0 },
+        { re: /\b(are (we|you) okay|are you mad at me|is everything okay)\b/i, w: 1.0 },
+        { re: /\b(reassur(e|ance|ing))\b/i, w: 1.1 },
+        { re: /\b(check(ing)? in constantly|keep checking)\b/i, w: 0.8 },
+        { re: /\b(need validation|need to hear)\b/i, w: 0.8 }
+      ],
+      coOccur: [['fear_abandonment', 0.4], ['attachment_anxiety', 0.5]],
+      insight: 'A loop where outside confirmation temporarily quiets an inside alarm — relief fades, the alarm returns, and the loop tightens.',
+      triggers: ['Perceived withdrawal', 'Ambiguity in tone', 'Silence'],
+      origin: 'When internal steadiness is shaky, the nervous system outsources the regulation. The reassurance works, briefly, which teaches the system to ask again.',
+      related: ['Fear of abandonment', 'Attachment anxiety', 'Rumination'],
+      subthemes: [
+        { n: 'The loop',         t: 'difficult', insight: 'The short arc: ask, relief, doubt, ask again. Seeing it as a loop changes it.' },
+        { n: 'The underneath',   t: 'mixed',     insight: 'The specific doubt the reassurance is trying to quiet. Usually the same one each time.' },
+        { n: 'Self-reassurance', t: 'positive',  insight: 'What you could offer yourself that an outside voice is currently being asked to carry.' },
+        { n: 'The cost to them', t: 'mixed',     insight: 'What the loop asks of the other person over time — named without blame, for both of you.' }
+      ]
+    },
+    {
+      id: 'emotional_over_responsibility',
+      label: 'Emotional over-responsibility',
+      category: 'self',
+      tone: 'mixed',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(their (feelings|mood|happiness) (is|are) my)\b/i, w: 1.0 },
+        { re: /\b(responsible for (their|his|her|everyone)'s? (mood|feelings|happiness))\b/i, w: 1.2 },
+        { re: /\b(if they'?re (sad|upset|angry)|it'?s my fault)\b/i, w: 0.9 },
+        { re: /\b(fix (it|them|this)|make (it|them) better)\b/i, w: 0.5 },
+        { re: /\b(carry (their|everyone'?s) (stuff|feelings|weight))\b/i, w: 0.9 }
+      ],
+      coOccur: [['people_pleasing', 0.4], ['over_control', 0.3], ['exhaustion_burnout', 0.2]],
+      insight: 'The boundary between their feelings and yours went missing early. Now their weather sets your weather, automatically.',
+      triggers: ['Others\' visible distress', 'Conflict in the room', 'Shifts in mood'],
+      origin: 'Often learned in systems where a child needed to track and manage an adult\'s state to stay safe. The skill stayed. The context changed.',
+      related: ['People-pleasing', 'Over-control', 'Emotional merging'],
+      subthemes: [
+        { n: 'The automatic scan',   t: 'difficult', insight: 'The moment your attention locks onto someone else\'s state. Usually before thought catches up.' },
+        { n: 'Whose is this',        t: 'mixed',     insight: 'The practice of asking, in the body, which feeling in the room belongs to whom.' },
+        { n: 'Letting their thing be theirs', t: 'positive', insight: 'Care without absorption. Warmth without becoming the weather system.' },
+        { n: 'What frees up',        t: 'positive',  insight: 'The energy that returns when you stop running two nervous systems at once.' }
+      ]
+    },
+    {
+      id: 'self_protection_independence',
+      label: 'Self-protection through independence',
+      category: 'attachment',
+      tone: 'mixed',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(don'?t (need|want) (anyone|help))\b/i, w: 1.0 },
+        { re: /\b(do it (all )?myself|rely on myself|only (trust|count on) myself)\b/i, w: 1.2 },
+        { re: /\b(independent|self\s*sufficient|on my own)\b/i, w: 0.8 },
+        { re: /\b(can'?t (rely|depend) on (people|anyone))\b/i, w: 1.0 },
+        { re: /\b(never ask for help)\b/i, w: 1.0 }
+      ],
+      coOccur: [['protective_distance', 0.4], ['fear_abandonment', 0.2]],
+      insight: 'Independence that looks like strength, and also functions as armor — needing no one means never being let down.',
+      triggers: ['Offers of help', 'Situations that invite dependence', 'Emotional need'],
+      origin: 'If depending on people was unreliable or unsafe, "I\'ll do it myself" became a survival policy. It kept you steady. It also keeps you alone.',
+      related: ['Protective distance', 'Fear of abandonment', 'Counter-dependence'],
+      subthemes: [
+        { n: 'The policy',         t: 'mixed',     insight: 'The unwritten rule you live by. Said out loud, it sounds less like wisdom and more like vigilance.' },
+        { n: 'What it cost you',   t: 'difficult', insight: 'The specific places this policy closed doors that might otherwise have stayed open.' },
+        { n: 'What it protected',  t: 'mixed',     insight: 'The real harm this policy spared you. It\'s important to name that honestly before updating it.' },
+        { n: 'A small ask',        t: 'positive',  insight: 'Low-risk places to practice receiving. The policy updates through evidence, not argument.' }
+      ]
+    },
+    {
+      id: 'rumination',
+      label: 'Rumination',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(rumin(ate|ating|ation))\b/i, w: 1.2 },
+        { re: /\b(can'?t stop thinking|keep thinking about)\b/i, w: 1.0 },
+        { re: /\b(going in circles|same thoughts|loop(ing)?)\b/i, w: 0.9 },
+        { re: /\b(overthink(ing)?|overanaly(ze|sing|zing))\b/i, w: 1.0 },
+        { re: /\b(stuck in my head|in my head too much)\b/i, w: 0.9 }
+      ],
+      coOccur: [['replaying_conversations', 0.4], ['hyperarousal', 0.3], ['sleep_dysregulation', 0.3]],
+      insight: 'Thinking that feels like problem-solving but isn\'t — the same ground walked again, looking for a resolution the mind alone can\'t provide.',
+      triggers: ['Unresolved conversations', 'Uncertainty', 'Quiet / bedtime'],
+      origin: 'Rumination usually starts as an attempt to prepare, predict, or fix. It keeps running because it briefly feels like it\'s helping — even when it\'s clearly not.',
+      related: ['Replaying conversations', 'Overthinking', 'Sleep dysregulation'],
+      subthemes: [
+        { n: 'The track',      t: 'difficult', insight: 'The specific loop you return to. Name it and it loses some authority.' },
+        { n: 'What it pretends to do', t: 'mixed', insight: 'The problem it promises to solve — and why it can\'t solve it from inside the loop.' },
+        { n: 'Off the track',  t: 'positive',  insight: 'Moves that don\'t fight the thought, just change the ground under it — body, place, sense, breath.' },
+        { n: 'The real question', t: 'mixed',   insight: 'The thing the loop is circling around. Asking it directly is usually what it\'s been avoiding.' }
+      ]
+    },
+    {
+      id: 'replaying_conversations',
+      label: 'Replaying conversations',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(replay(ing)? (it|the conversation|what (i|they) said))\b/i, w: 1.2 },
+        { re: /\b(what i should have said|should'?ve said)\b/i, w: 1.1 },
+        { re: /\b(went over it|kept going over|go over it again)\b/i, w: 0.9 },
+        { re: /\b(what did (they|she|he) mean|how did it sound)\b/i, w: 0.8 },
+        { re: /\b(cringe|cringing) (at|about)\b/i, w: 0.7 }
+      ],
+      coOccur: [['rumination', 0.5], ['inner_critic', 0.3]],
+      insight: 'Every conversation gets a second edit in your head — for the sentence you wish you\'d said, or the one you wish you hadn\'t.',
+      triggers: ['Social interactions', 'Perceived misstep', 'Falling asleep'],
+      origin: 'Replaying is the mind\'s attempt to get it right retroactively. It doesn\'t work — but it keeps trying, which keeps you there.',
+      related: ['Rumination', 'Inner critic', 'Post-event anxiety'],
+      subthemes: [
+        { n: 'The scene',       t: 'difficult', insight: 'The specific moment the mind keeps returning to. Usually smaller than it feels.' },
+        { n: 'What it\'s editing', t: 'mixed',  insight: 'Whether you\'re correcting them or yourself. The direction matters.' },
+        { n: 'Closing the scene', t: 'positive', insight: 'A way to end the replay that the mind will actually accept — not by winning, by releasing.' },
+        { n: 'Next time\'s move', t: 'mixed',    insight: 'The single small behavior change to carry forward, instead of re-litigating this one.' }
+      ]
+    },
+    {
+      id: 'sensitivity_disappointment',
+      label: 'Sensitivity to disappointment',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(disappoint(ed|ing|ment|s)?)\b/i, w: 0.6 },
+        { re: /\b(hits? (me )?hard|hit hard)\b/i, w: 0.7 },
+        { re: /\b(spiral(ing|ed)?|ruined (my )?(day|week))\b/i, w: 0.9 },
+        { re: /\b(take it personally|taking it personally)\b/i, w: 1.0 },
+        { re: /\b(small (things|thing) set(s)? me off)\b/i, w: 1.0 }
+      ],
+      coOccur: [['inner_critic', 0.3], ['fear_abandonment', 0.3]],
+      insight: 'Disappointment that lands harder than the event warranted — an older ache resonating through a current, smaller moment.',
+      triggers: ['Unmet expectations', 'Perceived rejection', 'Cancelled plans'],
+      origin: 'Present disappointments often amplify older, unmetabolized ones. The nervous system reads the current one through the older one.',
+      related: ['Inner critic', 'Abandonment sensitivity', 'Rejection sensitivity'],
+      subthemes: [
+        { n: 'The size of the wave', t: 'difficult', insight: 'The gap between what happened and how much it hurt. That gap is the information.' },
+        { n: 'What got touched',      t: 'mixed',    insight: 'The older disappointment this one rhymes with. Usually identifiable if you\'re willing to look.' },
+        { n: 'Regulating the wave',   t: 'positive', insight: 'Ways to hold the bigness without acting from it in the first 24 hours.' },
+        { n: 'The message',           t: 'mixed',    insight: 'What the intensity is pointing at — about expectations, about needs, about the relationship.' }
+      ]
+    },
+    {
+      id: 'over_control',
+      label: 'Over-control',
+      category: 'self',
+      tone: 'mixed',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(control (everything|it all)|keep control|stay in control)\b/i, w: 1.1 },
+        { re: /\b(control (freak|issues))\b/i, w: 1.2 },
+        { re: /\b(micromanag(e|ing)|manage everything)\b/i, w: 1.0 },
+        { re: /\b(can'?t let (it|things) go|can'?t delegate)\b/i, w: 0.9 },
+        { re: /\b(if (i|you) don'?t (do|it|i)t|it won'?t get done)\b/i, w: 0.8 }
+      ],
+      coOccur: [['emotional_over_responsibility', 0.3], ['hyperarousal', 0.3], ['exhaustion_burnout', 0.3]],
+      insight: 'Control that looks like competence and functions like armor — if nothing is left to chance, nothing can surprise you badly.',
+      triggers: ['Uncertainty', 'Trusting others\' follow-through', 'Letting go'],
+      origin: 'In environments where things went badly when left unmanaged, control became the policy. It kept you safe. It also keeps you tired.',
+      related: ['Emotional over-responsibility', 'Hyperarousal', 'Exhaustion / burnout'],
+      subthemes: [
+        { n: 'What it prevents',    t: 'mixed',     insight: 'The specific outcomes this control is guarding against. Usually older and more specific than it seems.' },
+        { n: 'What it costs',       t: 'difficult', insight: 'The ongoing tax — on your energy, your relationships, your rest.' },
+        { n: 'Letting a small thing go', t: 'positive', insight: 'A contained experiment in not-controlling. The evidence that accumulates there changes the policy more than argument does.' },
+        { n: 'Trust as a muscle',   t: 'positive',  insight: 'Trust builds in increments. Where you could extend a little more than your current default.' }
+      ]
+    },
+    {
+      id: 'performance_calm',
+      label: 'Performance calm / internal panic',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(look(ing)? calm|seem(s|ing)? fine|appear fine)\b/i, w: 1.0 },
+        { re: /\b(inside (i'?m|i am) (panic|freaking|dying))\b/i, w: 1.2 },
+        { re: /\b(fake (it|calm|smile)|mask(ing)? it)\b/i, w: 1.0 },
+        { re: /\b(hold it together|holding it together)\b/i, w: 0.9 },
+        { re: /\b(no one (knows|sees|would guess))\b/i, w: 0.8 }
+      ],
+      coOccur: [['hyperarousal', 0.4], ['people_pleasing', 0.2]],
+      insight: 'Two tracks running in parallel — an outside version keeping things steady, and an inside version carrying the full load alone.',
+      triggers: ['High-stakes moments', 'Public roles', 'Being observed'],
+      origin: 'Often the result of environments where the outside had to look fine. The skill became a default. The inside kept everything it wasn\'t allowed to show.',
+      related: ['Hyperarousal', 'People-pleasing', 'Emotional suppression'],
+      subthemes: [
+        { n: 'The gap',         t: 'difficult', insight: 'The distance between the two tracks. Size matters — and nobody else can measure it for you.' },
+        { n: 'Why the outside', t: 'mixed',     insight: 'What the outside version is buying you, and what it\'s costing you to run.' },
+        { n: 'A witnessed moment', t: 'positive', insight: 'One place or person where the inside could be let in on. Not everywhere — somewhere.' },
+        { n: 'Closing the gap', t: 'positive',  insight: 'Over time, smaller gap, less load. What that could actually look like in your week.' }
+      ]
+    },
+    {
+      id: 'attachment_anxiety',
+      label: 'Attachment anxiety',
+      category: 'attachment',
+      tone: 'difficult',
+      threshold: 1.4,
+      evidence: [
+        { re: /\b(anxious (attachment|about (them|the relationship)))\b/i, w: 1.3 },
+        { re: /\b(what if (they|she|he) (doesn'?t|don'?t|leaves|loses interest))\b/i, w: 1.0 },
+        { re: /\b(overthink(ing)? the relationship|overanalyz(e|ing) (them|us))\b/i, w: 1.0 },
+        { re: /\b(read too much into|reading into)\b/i, w: 0.8 },
+        { re: /\b(constantly check(ing)?|keep checking (their|my) phone)\b/i, w: 0.8 }
+      ],
+      coOccur: [['fear_abandonment', 0.5], ['reassurance_seeking', 0.5], ['rumination', 0.3]],
+      insight: 'A relationship-watching system that never fully stands down — every tone, every pause, every delay gets interpreted.',
+      triggers: ['Ambiguity in relational signals', 'Time apart', 'Delayed replies'],
+      origin: 'An anxious attachment system developed where closeness was real but unpredictable — the mind learned to monitor rather than rest.',
+      related: ['Fear of abandonment', 'Reassurance seeking', 'Rumination'],
+      subthemes: [
+        { n: 'The scan',         t: 'difficult', insight: 'The ambient vigilance. What it\'s watching, how often, how exhausting.' },
+        { n: 'Worst-case rehearsal', t: 'mixed',  insight: 'The story the system keeps rehearsing so it won\'t be caught off-guard. It rehearses, and it never prepares.' },
+        { n: 'Regulating from within', t: 'positive', insight: 'The steadying you can offer yourself that isn\'t dependent on how fast they reply.' },
+        { n: 'Speaking cleanly',  t: 'positive',  insight: 'What a direct, unreassurance-seeking request could sound like when you actually need something.' }
+      ]
+    },
+    {
+      id: 'resentment',
+      label: 'Resentment after self-abandonment',
+      category: 'self',
+      tone: 'difficult',
+      threshold: 1.3,
+      evidence: [
+        { re: /\b(resent(ful|ment|ing)?)\b/i, w: 1.2 },
+        { re: /\b(bitter|bitterness)\b/i, w: 0.8 },
+        { re: /\b(gave too much|gave and gave|always giving)\b/i, w: 0.9 },
+        { re: /\b(did it anyway|said yes when i meant no|ignored my own)\b/i, w: 1.0 },
+        { re: /\b(unappreciated|taken for granted)\b/i, w: 0.9 }
+      ],
+      coOccur: [['people_pleasing', 0.5], ['conflict_avoidance', 0.4], ['self_abandonment', 0.5]],
+      insight: 'Resentment is often the bill for a no that was never said — accurate information, delivered late, about a boundary that quietly went missing.',
+      triggers: ['Over-giving', 'Repeated silent yeses', 'Feeling unseen'],
+      origin: 'When your own needs keep getting deprioritized — by you — the system eventually collects the debt somewhere. Resentment is the collector.',
+      related: ['People-pleasing', 'Conflict avoidance', 'Self-abandonment'],
+      subthemes: [
+        { n: 'Reading the bill', t: 'difficult', insight: 'What the resentment is actually itemizing. The specific moments, the specific overrides.' },
+        { n: 'The missing no',   t: 'mixed',     insight: 'The sentence that, if said earlier, would have prevented this. Writing it now, retroactively, is still useful data.' },
+        { n: 'Staying or repairing', t: 'mixed', insight: 'Whether this is information about the situation or about your own pattern inside it — usually some of both.' },
+        { n: 'Forward language', t: 'positive',  insight: 'What a protective no could sound like from here, in this relationship, on this issue.' }
+      ]
+    }
+  ];
+
+  // Lookup + canonicalization ------------------------------------------------
+  const INFERRED_BY_ID = Object.fromEntries(INFERRED_PATTERNS.map(p => [p.id, p]));
+  const TONE_BY_ID     = Object.fromEntries(INFERRED_PATTERNS.map(p => [p.id, p.tone]));
+
+  // Map each inferred-pattern category to a brain tone so the spatial/color
+  // placement still has variety in the brain.
+  const INFERRED_CATEGORY_TO_TONE = {
+    self:       'difficult',
+    attachment: 'mixed',
+    body:       'difficult'
+  };
+
+  // Score patterns from finalText + the already-captured raw pills.
+  // Returns an array of { pattern, score, hits } sorted by score desc.
+  //
+  // scoring:
+  //   1. For each pattern, count regex hits in the finalText, weighted.
+  //      Each distinct match adds `w`; repeated matches of the same regex
+  //      add `w * 0.4` each (diminishing returns).
+  //   2. Apply co-occurrence bonuses from other patterns that already
+  //      cleared their threshold in the first pass.
+  //   3. Filter to patterns whose final score meets their own threshold.
+  function scoreInferredPatterns(text) {
+    if (!text || !text.trim()) return [];
+    const first = INFERRED_PATTERNS.map(p => {
+      let score = 0;
+      const hits = [];
+      for (const ev of p.evidence) {
+        const re = new RegExp(ev.re.source, ev.re.flags.includes('g') ? ev.re.flags : ev.re.flags + 'g');
+        let m;
+        let n = 0;
+        while ((m = re.exec(text)) !== null) {
+          if (n === 0) {
+            score += ev.w;
+            hits.push(m[0]);
+          } else {
+            score += ev.w * 0.4;
+          }
+          n++;
+          // Guard against zero-width matches infinite loop
+          if (m.index === re.lastIndex) re.lastIndex++;
+        }
+      }
+      return { pattern: p, score, hits };
+    });
+
+    // First-pass "cleared" set (before co-occur boosts)
+    const cleared = new Set(
+      first.filter(r => r.score >= r.pattern.threshold).map(r => r.pattern.id)
+    );
+
+    // Second pass: apply co-occurrence bonuses from cleared peers
+    const boosted = first.map(r => {
+      let bonus = 0;
+      for (const [otherId, b] of (r.pattern.coOccur || [])) {
+        if (cleared.has(otherId) && otherId !== r.pattern.id) bonus += b;
+      }
+      return { ...r, score: r.score + bonus };
+    });
+
+    // Keep those that cleared threshold after the boost
+    return boosted
+      .filter(r => r.score >= r.pattern.threshold)
+      .sort((a, b) => b.score - a.score);
+  }
+
+  // Extract up to `n` short source-sentence excerpts from finalText that
+  // contain any of the given evidence strings (case-insensitive).
+  function extractSourceExcerpts(text, evidenceWords, n) {
+    if (!text) return [];
+    const out = [];
+    const seen = new Set();
+    for (const w of evidenceWords) {
+      if (out.length >= n) break;
+      const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      const m = re.exec(text);
+      if (!m) continue;
+      const sentence = extractSentence(text, m.index);
+      const norm = sentence.trim().toLowerCase();
+      if (!norm || seen.has(norm)) continue;
+      seen.add(norm);
+      out.push(truncate(sentence, 160));
+    }
+    return out;
+  }
+
+  // Decide whether a broad area surfaces in the brain overview.
+  // Surface if: raw-word count for the area >= 1, OR any of the area's
+  // inferred patterns cleared their threshold. No evidence = hidden.
+  function areaHasEvidence(areaKey, scoredByPatternId) {
+    if (patternCounts[areaKey] > 0) return true;
+    const area = BROAD_AREAS[areaKey];
+    for (const pid of area.patternIds) {
+      if (scoredByPatternId[pid]) return true;
+    }
+    return false;
+  }
+
+  // Score how strongly an area is present (for ordering). Combines raw
+  // word count with cleared-pattern scores.
+  function scoreArea(areaKey, scoredByPatternId) {
+    let s = (patternCounts[areaKey] || 0) * 0.5;
+    const area = BROAD_AREAS[areaKey];
+    for (const pid of area.patternIds) {
+      const r = scoredByPatternId[pid];
+      if (r) s += r.score;
+    }
+    return s;
+  }
+
+  // Build the brain overview: l1 = broad areas, l2 = inferred patterns.
   function buildBrainCategories() {
-    const pills = Array.from(capturedPills.values());
-    // Sort by count desc so most-mentioned pills get the prime positions,
-    // and cap to 8 so the brain doesn't get overcrowded.
-    pills.sort((a, b) => b.count - a.count || a.text.localeCompare(b.text));
-    const MAX_PRINCIPALS = 8;
-    const visible = pills.slice(0, MAX_PRINCIPALS);
+    // 1. Score canonical inferred patterns from the full transcript
+    const scored = scoreInferredPatterns(finalText);
+    const scoredByPatternId = Object.fromEntries(scored.map(r => [r.pattern.id, r]));
 
-    const zones = generatePillZones(visible.length);
+    // 2. Rank the 5 broad areas by combined evidence; filter empty ones
+    const areaKeys = Object.keys(BROAD_AREAS)
+      .filter(k => areaHasEvidence(k, scoredByPatternId))
+      .sort((a, b) => scoreArea(b, scoredByPatternId) - scoreArea(a, scoredByPatternId));
 
-    return visible.map((pill, i) => {
-      const subthemes = SUBTHEME_TEMPLATES[pill.category] || GENERIC_SUBTHEMES;
-      const tone = CATEGORY_TO_BRAIN_TONE[pill.category] || 'neutral';
+    // 3. If nothing surfaces (very short or off-topic transcript), fall back
+    //    to showing all five areas so the demo never goes blank.
+    const finalKeys = areaKeys.length > 0 ? areaKeys : Object.keys(BROAD_AREAS);
+    const zones = generatePillZones(finalKeys.length);
 
-      // l2: one per subtheme, with insight personalized to this pill
-      const l2 = subthemes.map((sub, si) => ({
-        n: sub.n,
-        t: sub.t,
-        card: {
-          insight: sub.insight.replace(/\{pill\}/g, pill.text),
-          triggers: [],
-          origin: pill.source ? `From when you said: "${truncate(pill.source, 140)}"` : '',
-          // Related = the parent pill + the other subthemes under it
-          related: [pill.label].concat(
-            subthemes
-              .filter((_, sj) => sj !== si)
-              .map(s => s.n)
-          )
-        },
-        l3: []
-      }));
+    // Raw pills still contribute to supporting evidence on l1 cards.
+    const rawPillsByArea = {};
+    for (const pill of capturedPills.values()) {
+      (rawPillsByArea[pill.category] = rawPillsByArea[pill.category] || []).push(pill);
+    }
 
-      // Related: other captured pills (for the card's "Related themes" section)
-      const related = pills
-        .filter(p => p !== pill)
+    return finalKeys.map((areaKey, i) => {
+      const area = BROAD_AREAS[areaKey];
+
+      // Aggregate evidence for this area:
+      //   - raw matched words (from capturedPills in this area)
+      //   - phrases matched by any of the area's inferred patterns that cleared
+      //   - source-sentence excerpts from the transcript
+      const rawPhrases = (rawPillsByArea[areaKey] || []).map(p => p.text);
+      const inferredHitsForArea = [];
+      for (const pid of area.patternIds) {
+        const r = scoredByPatternId[pid];
+        if (r) inferredHitsForArea.push(...r.hits);
+      }
+      const matchedPhrases = Array.from(new Set(
+        rawPhrases.concat(inferredHitsForArea.map(h => h.toLowerCase()))
+      )).slice(0, 10);
+
+      // Excerpts: pull from the union of raw + inferred hits
+      const evidenceTerms = Array.from(new Set(
+        rawPhrases.concat(inferredHitsForArea.map(h => h.toLowerCase()))
+      ));
+      const excerpts = extractSourceExcerpts(finalText, evidenceTerms, 3);
+
+      // "Related" = the other surfaced areas (keeps l1 cards consistent)
+      const related = finalKeys
+        .filter(k => k !== areaKey)
         .slice(0, 4)
-        .map(p => p.label);
+        .map(k => BROAD_AREAS[k].label);
+
+      // If any inferred patterns under this area cleared threshold, list
+      // them in a note so the user sees what's feeding this area.
+      const clearedUnderArea = area.patternIds
+        .map(pid => scoredByPatternId[pid])
+        .filter(Boolean)
+        .map(r => r.pattern.label);
+      const note = clearedUnderArea.length
+        ? 'Detected patterns · ' + clearedUnderArea.slice(0, 3).join(' · ')
+        : '';
+
+      // Build l2 subthemes: each references an inferred pattern by id
+      // and inherits the area's color for visual continuity.
+      const l2 = area.subthemes.map((sub, si) => {
+        const pat = INFERRED_BY_ID[sub.patternId];
+        const patternInsight = pat ? pat.insight : '';
+        const patternOrigin  = pat ? pat.origin  : '';
+        const patternTriggers = pat ? (pat.triggers || []) : [];
+        // Related = sibling subthemes + parent area
+        const siblingLabels = area.subthemes.filter((_, sj) => sj !== si).map(s => s.label);
+        const relatedL2 = [area.label].concat(siblingLabels);
+        return {
+          n: sub.label,
+          t: area.tone,   // inherit area color so l2 pills match l1's color
+          card: {
+            insight: patternInsight,
+            triggers: patternTriggers,
+            origin: patternOrigin,
+            related: relatedL2
+          },
+          l3: []
+        };
+      });
 
       return {
-        name: pill.label,
+        name: area.label,
         zone: zones[i],
-        tone,
+        tone: area.tone,
         card: {
-          insight: pill.count === 1
-            ? `You mentioned "${pill.text}" once in this session.`
-            : `You mentioned "${pill.text}" ${pill.count} times in this session.`,
-          triggers: [],
-          origin: pill.source ? `You said: "${truncate(pill.source, 160)}"` : '',
+          insight: area.insight,
+          triggers: area.triggers || [],
+          origin: area.origin || '',
           related,
-          note: pill.category ? `Category · ${humanCategory(pill.category)}` : ''
+          note,
+          evidence: (matchedPhrases.length || excerpts.length) ? {
+            matched: matchedPhrases,
+            excerpts,
+            rawPills: (rawPillsByArea[areaKey] || []).slice(0, 3).map(p => p.label)
+          } : null
         },
         l2
       };
@@ -2671,7 +3181,7 @@
     // 1. Stop listening so the mic is free
     shouldListen = false;
     clearTimeout(restartTimer);
-    try { abortAllRecognizers(); } catch (_) {}
+    try { abortRecognition(); } catch (_) {}
 
     // 2. Snapshot summary chips for the "flying pills" animation
     const chipEls = Array.from(summaryEl.querySelectorAll('.chip'));
@@ -2792,7 +3302,14 @@ function initBrainExperience(CATEGORIES) {
     positive:  '#5EE6A0',
     neutral:   '#8AB0FF',
     mixed:     '#C9A4FF',
-    difficult: '#FF9B87'
+    difficult: '#FF9B87',
+    // Area-specific tones — the SAME hues used by the chips under the
+    // transcript. Makes the capture → brain transition visually coherent.
+    area_relationships:   '#E85998',
+    area_anxiety:         '#F28F61',
+    area_energy:          '#8B5CF6',
+    area_self_protection: '#10B981',
+    area_body_signals:    '#3895D3'
   };
 
 
@@ -2878,8 +3395,14 @@ function initBrainExperience(CATEGORIES) {
 
   // ============================================================
   // Sample particles
+  //
+  // Density: halved from the original 7500. The sampling volume
+  // (the inBrain() envelope) and the distribution character stay
+  // identical, so the brain's silhouette and spatial footprint are
+  // unchanged — there are simply fewer particles filling the same
+  // shape. Cluster density and filler density scale with this too.
   // ============================================================
-  const TARGET = 7500;
+  const TARGET = 3750;
   const positions = [], cols = [], sizes = [], seeds = [];
   let attempts = 0;
   while (positions.length < TARGET && attempts < TARGET * 80) {
@@ -2898,9 +3421,12 @@ function initBrainExperience(CATEGORIES) {
   const N = positions.length;
 
   // ============================================================
-  // Pick 32 hubs
+  // Pick 16 hubs (halved from 32 — fewer bright star nodes, same
+  // spatial distribution). The fallback lower down promotes cluster
+  // particles into any l2 slots that can't claim a hub, so reducing
+  // NUM_HUBS doesn't break the pill-to-anchor assignment.
   // ============================================================
-  const NUM_HUBS = 32;
+  const NUM_HUBS = 16;
   const allDepths = positions.map(p => brainDepth(p[0], p[1], p[2]));
   const sortedByDepth = allDepths.map((d, i) => ({ d, i })).sort((a,b) => b.d - a.d);
   const hubIdx = [];
@@ -3538,15 +4064,16 @@ function initBrainExperience(CATEGORIES) {
     const pr = principals[node.principalIdx];
     const cat = CATEGORIES[pr.categoryIndex];
 
-    let title, category, insight, triggers, origin, related, note;
+    let title, category, insight, triggers, origin, related, note, evidence;
     if (node.level === 'l1') {
       title = cat.name;
-      category = 'Region · Inner world';
+      category = 'Inferred pattern';
       insight  = cat.card.insight;
       triggers = cat.card.triggers || [];
       origin   = cat.card.origin;
       related  = cat.card.related || [];
       note     = cat.card.note;
+      evidence = cat.card.evidence || null;   // { matched, excerpts, rawPills } | null
     } else if (node.level === 'l2') {
       const l2Def = cat.l2[pr.l2List[node.l2Idx].defIdx];
       title = l2Def.n;
@@ -3596,9 +4123,14 @@ function initBrainExperience(CATEGORIES) {
         <div class="card-section-label">Triggers</div>
         <div class="card-tags">${tagsHTML(triggers)}</div>
       </div>` : '';
+    // Label: on l1 inferred-pattern cards this is "Why this appeared"
+    // (the psychological origin that typically produces this pattern).
+    // On teasers (l2/l3) it keeps the earlier "Origin & Predictions"
+    // label to preserve that UX.
+    const originLabel = (node.level === 'l1') ? 'Why this appeared' : 'Origin &amp; Predictions';
     const originBlock = origin ? `
       <div class="card-section">
-        <div class="card-section-label">Origin &amp; Predictions</div>
+        <div class="card-section-label">${originLabel}</div>
         <div class="card-section-text">${esc(origin)}</div>
       </div>` : '';
     const relatedBlock = (related && related.length) ? `
@@ -3607,6 +4139,24 @@ function initBrainExperience(CATEGORIES) {
         <div class="card-tags">${tagsHTML(related)}</div>
       </div>` : '';
     const noteBlock = note ? `<div class="card-note">${esc(note)}</div>` : '';
+
+    // Supporting evidence — ONLY on l1 inferred-pattern cards. Shows the
+    // actual matched words/phrases and source-sentence excerpts from the
+    // user's transcript that triggered this pattern. This is what makes
+    // the map feel like it came from what the user said.
+    let evidenceBlock = '';
+    if (node.level === 'l1' && evidence && (evidence.matched?.length || evidence.excerpts?.length)) {
+      const matchTags = (evidence.matched || []).slice(0, 8)
+        .map(m => `<span class="card-tag">${esc(m)}</span>`).join('');
+      const excerptList = (evidence.excerpts || []).slice(0, 3)
+        .map(ex => `<div class="card-excerpt">"${esc(ex)}"</div>`).join('');
+      evidenceBlock = `
+        <div class="card-section">
+          <div class="card-section-label">Supporting evidence</div>
+          ${matchTags ? `<div class="card-tags">${matchTags}</div>` : ''}
+          ${excerptList ? `<div class="card-excerpts">${excerptList}</div>` : ''}
+        </div>`;
+    }
 
     if (isTeaser) {
       // Teaser layout: first sentence of insight visible, rest blurred,
@@ -3657,8 +4207,9 @@ function initBrainExperience(CATEGORIES) {
         <div class="card-body">
           <div class="card-category">${esc(category)}</div>
           <div class="card-insight">${esc(insight)}</div>
-          ${triggersBlock}
           ${originBlock}
+          ${evidenceBlock}
+          ${triggersBlock}
           ${relatedBlock}
           ${noteBlock}
         </div>
